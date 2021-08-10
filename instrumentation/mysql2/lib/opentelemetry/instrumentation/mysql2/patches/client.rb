@@ -65,15 +65,7 @@ module OpenTelemetry
           private
 
           def obfuscate_sql(sql)
-            return sql unless config[:enable_sql_obfuscation]
-
-            if sql.size > 2000
-              'SQL query too large to remove sensitive data ...'
-            else
-              obfuscated = sql.gsub(generated_mysql_regex, '?')
-              obfuscated = 'Failed to obfuscate SQL query - quote characters remained after obfuscation' if detect_unmatched_pairs(obfuscated)
-              obfuscated
-            end
+            return sql.first(2000)
           end
 
           def generated_mysql_regex
@@ -124,6 +116,7 @@ module OpenTelemetry
             }
             attributes['db.name'] = database_name if database_name
             attributes['peer.service'] = config[:peer_service] if config[:peer_service]
+            attributes['mdsol.stack_location'] = caller.select { |entry| entry !~ /gems/ }.first(20).join(" | ").first(2000)
             attributes
           end
 
