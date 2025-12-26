@@ -164,7 +164,7 @@ module OpenTelemetry
             OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint 4")
             remaining_timeout = OpenTelemetry::Common::Utilities.maybe_timeout(timeout, start_time)
             if remaining_timeout.zero?
-              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes timeout before request")
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes timeout before request, timeout: #{timeout}s, uri=#{@uri}, path=#{@path}")
               return FAILURE
             end
 
