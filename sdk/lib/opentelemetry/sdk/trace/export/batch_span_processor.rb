@@ -189,6 +189,7 @@ module OpenTelemetry
             report_result(result_code, span_array)
             result_code
           rescue StandardError => e
+            OpenTelemetry.handle_error(exception: e, message: 'unexpected error in BatchSpanProcessor#export_batch')
             report_result(FAILURE, span_array)
             @metrics_reporter.add_to_counter('otel.bsp.error', labels: { 'reason' => e.class.to_s })
             FAILURE
