@@ -76,7 +76,10 @@ module OpenTelemetry
         # @param [optional Numeric] timeout An optional timeout in seconds.
         # @return [Integer] the result of the export.
         def export(span_data, timeout: nil)
-          return FAILURE if @shutdown
+          if @shutdown
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#export called after shutdown")
+            return FAILURE
+          end
 
           send_bytes(encode(span_data), timeout: timeout)
         end
@@ -126,7 +129,10 @@ module OpenTelemetry
         end
 
         def send_bytes(bytes, timeout:) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
-          return FAILURE if bytes.nil?
+          if bytes.nil?
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes called with nil bytes")
+            return FAILURE
+          end
 
           @metrics_reporter.record_value('otel.otlp_exporter.message.uncompressed_size', value: bytes.bytesize)
 
@@ -148,7 +154,10 @@ module OpenTelemetry
 
           around_request do
             remaining_timeout = OpenTelemetry::Common::Utilities.maybe_timeout(timeout, start_time)
-            return FAILURE if remaining_timeout.zero?
+            if remaining_timeout.zero?
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes timeout before request")
+              return FAILURE
+            end
 
             @http.open_timeout = remaining_timeout
             @http.read_timeout = remaining_timeout
@@ -163,17 +172,21 @@ module OpenTelemetry
             when Net::HTTPServiceUnavailable, Net::HTTPTooManyRequests
               response.body # Read and discard body
               redo if backoff?(retry_after: response['Retry-After'], retry_count: retry_count += 1, reason: response.code)
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 1")
               FAILURE
             when Net::HTTPRequestTimeOut, Net::HTTPGatewayTimeOut, Net::HTTPBadGateway
               response.body # Read and discard body
               redo if backoff?(retry_count: retry_count += 1, reason: response.code)
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 2")
               FAILURE
             when Net::HTTPNotFound
               log_request_failure(response.code)
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 3")
               FAILURE
             when Net::HTTPBadRequest, Net::HTTPClientError, Net::HTTPServerError
               log_status(response.body)
               @metrics_reporter.add_to_counter('otel.otlp_exporter.failure', labels: { 'reason' => response.code })
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 4")
               FAILURE
             when Net::HTTPRedirection
               @http.finish
@@ -182,10 +195,12 @@ module OpenTelemetry
             else
               @http.finish
               log_request_failure(response.code)
+              OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 5")
               FAILURE
             end
           rescue Net::OpenTimeout, Net::ReadTimeout
             retry if backoff?(retry_count: retry_count += 1, reason: 'timeout')
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 6")
             return FAILURE
           rescue OpenSSL::SSL::SSLError => e
             retry if backoff?(retry_count: retry_count += 1, reason: 'openssl_error')
@@ -193,15 +208,19 @@ module OpenTelemetry
             return FAILURE
           rescue SocketError
             retry if backoff?(retry_count: retry_count += 1, reason: 'socket_error')
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 7")
             return FAILURE
           rescue SystemCallError => e
             retry if backoff?(retry_count: retry_count += 1, reason: e.class.name)
+            OpenTelemetry.handle_error(exception: e, message: 'system call error in OTLP::Exporter#send_bytes')
             return FAILURE
           rescue EOFError
             retry if backoff?(retry_count: retry_count += 1, reason: 'eof_error')
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 8")
             return FAILURE
           rescue Zlib::DataError
             retry if backoff?(retry_count: retry_count += 1, reason: 'zlib_error')
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes failure case 9")
             return FAILURE
           rescue StandardError => e
             OpenTelemetry.handle_error(exception: e, message: 'unexpected error in OTLP::Exporter#send_bytes')
