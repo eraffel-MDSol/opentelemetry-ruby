@@ -185,6 +185,7 @@ module OpenTelemetry
 
           def export_batch(span_array, timeout: @exporter_timeout_seconds)
             batch = span_array.map(&:to_span_data)
+            OpenTelemetry.logger.warn("OpenTelemetry warning: BatchSpanProcessor#export_batch called, exporter class: #{@exporter.class}")
             result_code = @export_mutex.synchronize { @exporter.export(batch, timeout: timeout) }
             report_result(result_code, span_array)
             result_code

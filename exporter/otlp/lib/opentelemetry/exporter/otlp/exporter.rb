@@ -76,10 +76,13 @@ module OpenTelemetry
         # @param [optional Numeric] timeout An optional timeout in seconds.
         # @return [Integer] the result of the export.
         def export(span_data, timeout: nil)
+          OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint A")
           if @shutdown
             OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#export called after shutdown")
             return FAILURE
           end
+
+          OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint B")
 
           send_bytes(encode(span_data), timeout: timeout)
         end
@@ -129,12 +132,15 @@ module OpenTelemetry
         end
 
         def send_bytes(bytes, timeout:) # rubocop:disable Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+          OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint 1")
           if bytes.nil?
             OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes called with nil bytes")
             return FAILURE
           end
 
           @metrics_reporter.record_value('otel.otlp_exporter.message.uncompressed_size', value: bytes.bytesize)
+
+          OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint 2")
 
           request = Net::HTTP::Post.new(@path)
           if @compression == 'gzip'
@@ -152,7 +158,10 @@ module OpenTelemetry
           timeout ||= @timeout
           start_time = OpenTelemetry::Common::Utilities.timeout_timestamp
 
+          OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint 3")
+
           around_request do
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint 4")
             remaining_timeout = OpenTelemetry::Common::Utilities.maybe_timeout(timeout, start_time)
             if remaining_timeout.zero?
               OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes timeout before request")
@@ -164,6 +173,8 @@ module OpenTelemetry
             @http.write_timeout = remaining_timeout
             @http.start unless @http.started?
             response = measure_request_duration { @http.request(request) }
+
+            OpenTelemetry.logger.warn("OpenTelemetry warning: OTLP::Exporter#send_bytes checkpoint 5")
 
             case response
             when Net::HTTPOK
